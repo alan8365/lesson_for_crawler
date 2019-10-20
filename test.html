@@ -1,0 +1,744 @@
+<!DOCTYPE HTML>
+<html>
+<head id="ctl00_Head1">
+    <meta name='format-detection' content='telephone=no'/>
+    <link type='text/css' href='/css/blue-ui/index.css' rel='stylesheet'/>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+    <!-- SmartMenus core CSS (required) -->
+    <link type="text/css" href="/css/sm-core-css.css" rel="stylesheet"/>
+    <link type="text/css" href="/css/themes/smoothness/jquery-ui.min.css" rel="stylesheet"/>
+    <link type="text/css" href="/css/jquery.qtip.min.css" rel="stylesheet"/>
+    <link type="text/css" href="/css/design.css" rel="stylesheet"/>
+    <script type='text/javascript' src="/js/jquery-1.10.2.min.js"></script>
+    <script type='text/javascript' src="/js/jquery-ui-1.10.4.custom.min.js"></script>
+    <script type="text/javascript" src="/js/jquery.smartmenus.js"></script>
+    <script type='text/javascript' src="/js/adv_dialog.js"></script>
+    <script type='text/javascript' src="/js/jquery.qtip.js"></script>
+    <script type="text/javascript" src="/js/ais_menu.js"></script>
+    <script type="text/javascript" src="/js/json.js"></script>
+    <script type='text/javascript' src="/js/helpers.js"></script>
+
+    <style type="text/css">
+        .grid_view th {
+            text-align: center;
+            vertical-align: middle;
+            height: 25px;
+        }
+
+        .grid_view td {
+            text-align: center;
+            vertical-align: middle;
+            height: 25px;
+        }
+
+        .selgray {
+            margin-right: 20px;
+        }
+
+        .selpage {
+            font-size: 15px;
+        }
+
+        .red_tips {
+            color: white;
+            background-color: #CC3333;
+        }
+
+        .ex_prop {
+            color: Fuchsia;
+        }
+
+        .note_info {
+            display: block;
+            color: red;
+        }
+
+        .list_info {
+            padding-top: 10px;
+            padding-left: 30px;
+            padding-bottom: 5px;
+            background: url(/images/icon_primary.gif) no-repeat 5px 10px;
+        }
+
+    </style>
+    <script type='text/javascript' src='/js/ais_comm.js'></script>
+    <script type='text/javascript' src='/public/clsno_list.js'></script>
+    <script type='text/javascript' src='/public/teacher_list.js'></script>
+    <script type='text/javascript' src='/public/subject_list.js'></script>
+    <script type='text/javascript'>
+        $(function () {
+            $("[name=start_section]").empty();
+            $("[name=end_section]").empty();
+            if ($("#sch_dep").val() == 1) {
+                for (i = 1; i <= 13; i++) {
+                    $("[name=start_section]").append("<option value='" + i + "'>" + i + "</option>");
+                    $("[name=end_section]").append("<option value='" + i + "'>" + i + "</option>");
+                }
+            } else {
+                for (i = 6; i <= 14; i++) {
+                    $("[name=start_section]").append("<option value='" + i + "'>" + i + "</option>");
+                    $("[name=end_section]").append("<option value='" + i + "'>" + i + "</option>");
+                }
+            }
+            $("[name=start_section]").change(function () {
+                var start_section = $("[name=start_section]").val();
+                var end_section = $("[name=end_section]").val();
+                if (parseInt(end_section) < parseInt(start_section))
+                    $("[name=end_section]").val(start_section);
+            });
+
+            $("[name=end_section]").change(function () {
+                var start_section = $("[name=start_section]").val();
+                var end_section = $("[name=end_section]").val();
+                if (parseInt(end_section) < parseInt(start_section))
+                    $("[name=start_section]").val(end_section);
+            });
+        });
+
+        function course_detail(ccid) {
+            $.showModalDialog({
+                url: './course_details.aspx?sem=1081&ccid=' + ccid,
+                width: 750,
+                height: $(window).height() + 10,
+                scrollable: false,
+                resizable: false,
+                onClose: function () {
+                    if (this.returnValue > 0) location.reload();
+                },
+                position: {my: "center", at: "top", of: $("body"), within: $("body")}
+            });
+            return false;
+        }
+
+        var g_defClsno = '1320191191';
+
+        $(document).ready(function () {
+
+            $("#tabs").tabs();
+            $("#tabs").css("visibility", "visible");
+
+            $('[name=sem]').change(function () {
+                show_cover(true);
+                $('[name=sem]').val($(this).val()); // sync all
+                setTimeout("resetOptions('" + $(this).val() + "')", 20);
+            });
+        });
+
+        var g_queryTeacherSet = [];
+        var g_querySubjectSet = [];
+
+        function resetOptions(optSem) {
+            var sem = 'D1_' + optSem;
+            var list = g_Clsno[sem];
+
+            var $selClsno = $('[name=clsno]');
+            $selClsno.empty();
+            if (list != null) {
+                for (var i in list)
+                    $selClsno.append("<option value='" + list[i][0] + "'>" + list[i][1] + "</option>");
+            }
+            if ('1081' == optSem && g_defClsno != '')
+                $('[name=clsno]').val(g_defClsno);
+
+            // prepare data for teacher list
+            g_queryTeacherSet = [];
+            prepareQueryList(g_Teacher[sem], g_queryTeacherSet, $("#tname"), 0);
+
+            // prepare data for subject list
+            g_querySubjectSet = [];
+            prepareQueryList(g_Subject[sem], g_querySubjectSet, $("#sname"), 0);
+
+            show_cover(false);
+        }
+
+        // prepares the query list for autocomplete
+        function prepareQueryList(list, querySet, $input, defVal) {
+            if (list != null) {
+                for (var i in list)
+                    querySet.push({label: list[i][1], value: list[i][0]});
+            }
+
+            $input.autocomplete({
+                source: function (request, response) {
+                    var results = $.ui.autocomplete.filter(querySet, request.term);
+                    response(results.slice(0, 15));
+                },
+                minLength: 1,
+                delay: 200,
+                position: {my: "center top", at: "center bottom"},
+                focus: function (event, ui) {
+                    event.preventDefault();
+                },
+                select: function (event, ui) {
+                    $(this).val(ui.item.label);
+                    return false;
+                }
+            });
+
+            // initiates the default input text
+            if (defVal > 0) {
+                for (var i in querySet) {
+                    if (querySet[i].value == defVal) {
+                        $input.val(querySet[i].label);
+                        break;
+                    }
+                }
+            }
+        }
+
+        function check_teacher() {
+            var name = trim($('#tname').val());
+            if (name.length == 0) {
+                alert('請輸入教師姓名。');
+                return;
+            }
+
+            for (var i in g_queryTeacherSet) {
+                if (g_queryTeacherSet[i].label == name) {
+                    $('[name=teacher]').val(g_queryTeacherSet[i].value);
+                    return true;
+                }
+            }
+
+            alert('教師資料不存在。');
+            return false;
+        }
+
+        function check_subject() {
+            var name = trim($('#sname').val());
+            if (name.length == 0) {
+                alert('請輸入科目名稱。');
+                return;
+            }
+
+            for (var i in g_querySubjectSet) {
+                if (g_querySubjectSet[i].label == name) {
+                    $('[name=subject]').val(g_querySubjectSet[i].value);
+                    return true;
+                }
+            }
+
+            alert('科目名稱不存在。');
+            return false;
+        }
+    </script>
+
+    <!--[if lt IE 8]>
+    <link type="text/css" href="/css/design_ie7_fix.css" rel="stylesheet"/>
+    <![endif]-->
+    <script type='text/javascript'>
+        $(document).ready(function () {
+            $(':input[name="sem"]').val('1081');
+            $('[name=sem]:first').trigger('change');
+            $('#tabs').tabs('option', 'active', 0);
+        })</script>
+    <title>
+        課程資訊
+    </title></head>
+<body style='margin:0 auto; min-width: 1024px;'>
+<div id="header">
+    <table width="100%" border="0" cellpadding="0" cellspacing="0">
+        <tr>
+            <td valign="top" width='1020'><img src="/images/banner/1/banner_left.png"/></td>
+            <td align="right" valign="bottom"><img
+                    src='/images/banner/1/banner_right.png' width='100%' height='80'/></td>
+        </tr>
+    </table>
+</div>
+<div id="content" style='min-height:350px; padding-left:10px; font-size: 15px;'>
+
+    <div style="padding:10px 0px 5px 2px; font-weight:bold; width: 98%;">
+        <div id="tabs" style='visibility:hidden; margin-right: 2px;'>
+            <ul>
+                <li><a href="#tabs1">班級查詢</a></li>
+                <li><a href="#tabs2">教師查詢</a></li>
+                <li><a href="#tabs3">科目查詢</a></li>
+
+                <li><a href="#tabs4">通識/體育/語言課程</a></li>
+                <li><a href="#tabs5">特定時段課程查詢</a></li>
+
+            </ul>
+            <div id="tabs1">
+                <form method="get" name='qry_form1' action="">
+                    <img src="/images/icon_search1.gif" alt='query'/>&nbsp;
+                    學期：<select name='sem' id='sem' class='selgray'>
+                    <option value='901'>90(上)</option>
+                    <option value='902'>90(下)</option>
+                    <option value='911'>91(上)</option>
+                    <option value='912'>91(下)</option>
+                    <option value='921'>92(上)</option>
+                    <option value='922'>92(下)</option>
+                    <option value='931'>93(上)</option>
+                    <option value='932'>93(下)</option>
+                    <option value='941'>94(上)</option>
+                    <option value='942'>94(下)</option>
+                    <option value='951'>95(上)</option>
+                    <option value='952'>95(下)</option>
+                    <option value='961'>96(上)</option>
+                    <option value='962'>96(下)</option>
+                    <option value='971'>97(上)</option>
+                    <option value='972'>97(下)</option>
+                    <option value='981'>98(上)</option>
+                    <option value='982'>98(下)</option>
+                    <option value='991'>99(上)</option>
+                    <option value='992'>99(下)</option>
+                    <option value='1001'>100(上)</option>
+                    <option value='1002'>100(下)</option>
+                    <option value='1011'>101(上)</option>
+                    <option value='1012'>101(下)</option>
+                    <option value='1021'>102(上)</option>
+                    <option value='1022'>102(下)</option>
+                    <option value='1031'>103(上)</option>
+                    <option value='1032'>103(下)</option>
+                    <option value='1041'>104(上)</option>
+                    <option value='1042'>104(下)</option>
+                    <option value='1051'>105(上)</option>
+                    <option value='1052'>105(下)</option>
+                    <option value='1061'>106(上)</option>
+                    <option value='1062'>106(下)</option>
+                    <option value='1071'>107(上)</option>
+                    <option value='1072'>107(下)</option>
+                    <option value='1081'>108(上)</option>
+                </select>
+
+                    班級：<select name="clsno" class="selgray"></select>
+                    <input type="submit" class="btn_middle" value="查詢"/>
+                </form>
+            </div>
+            <div id="tabs2">
+                <form method="get" name='qry_form2' action="" onsubmit='return check_teacher();'>
+                    <img src="/images/icon_search1.gif" alt='query'/>&nbsp;
+                    學期：<select name='sem' class='selgray'>
+                    <option value='901'>90(上)</option>
+                    <option value='902'>90(下)</option>
+                    <option value='911'>91(上)</option>
+                    <option value='912'>91(下)</option>
+                    <option value='921'>92(上)</option>
+                    <option value='922'>92(下)</option>
+                    <option value='931'>93(上)</option>
+                    <option value='932'>93(下)</option>
+                    <option value='941'>94(上)</option>
+                    <option value='942'>94(下)</option>
+                    <option value='951'>95(上)</option>
+                    <option value='952'>95(下)</option>
+                    <option value='961'>96(上)</option>
+                    <option value='962'>96(下)</option>
+                    <option value='971'>97(上)</option>
+                    <option value='972'>97(下)</option>
+                    <option value='981'>98(上)</option>
+                    <option value='982'>98(下)</option>
+                    <option value='991'>99(上)</option>
+                    <option value='992'>99(下)</option>
+                    <option value='1001'>100(上)</option>
+                    <option value='1002'>100(下)</option>
+                    <option value='1011'>101(上)</option>
+                    <option value='1012'>101(下)</option>
+                    <option value='1021'>102(上)</option>
+                    <option value='1022'>102(下)</option>
+                    <option value='1031'>103(上)</option>
+                    <option value='1032'>103(下)</option>
+                    <option value='1041'>104(上)</option>
+                    <option value='1042'>104(下)</option>
+                    <option value='1051'>105(上)</option>
+                    <option value='1052'>105(下)</option>
+                    <option value='1061'>106(上)</option>
+                    <option value='1062'>106(下)</option>
+                    <option value='1071'>107(上)</option>
+                    <option value='1072'>107(下)</option>
+                    <option value='1081'>108(上)</option>
+                </select>
+                    教師：<input class='input_gray' id='tname' size='10'/><input type='hidden' name='teacher'/>&nbsp;
+                    <input type="submit" class="btn_middle" value="查詢"/>
+                </form>
+            </div>
+            <div id="tabs3">
+                <form method="get" name='qry_form3' action="" onsubmit='return check_subject();'>
+                    <img src="/images/icon_search1.gif" alt='query'/>&nbsp;
+                    學期：<select name='sem' class='selgray'>
+                    <option value='901'>90(上)</option>
+                    <option value='902'>90(下)</option>
+                    <option value='911'>91(上)</option>
+                    <option value='912'>91(下)</option>
+                    <option value='921'>92(上)</option>
+                    <option value='922'>92(下)</option>
+                    <option value='931'>93(上)</option>
+                    <option value='932'>93(下)</option>
+                    <option value='941'>94(上)</option>
+                    <option value='942'>94(下)</option>
+                    <option value='951'>95(上)</option>
+                    <option value='952'>95(下)</option>
+                    <option value='961'>96(上)</option>
+                    <option value='962'>96(下)</option>
+                    <option value='971'>97(上)</option>
+                    <option value='972'>97(下)</option>
+                    <option value='981'>98(上)</option>
+                    <option value='982'>98(下)</option>
+                    <option value='991'>99(上)</option>
+                    <option value='992'>99(下)</option>
+                    <option value='1001'>100(上)</option>
+                    <option value='1002'>100(下)</option>
+                    <option value='1011'>101(上)</option>
+                    <option value='1012'>101(下)</option>
+                    <option value='1021'>102(上)</option>
+                    <option value='1022'>102(下)</option>
+                    <option value='1031'>103(上)</option>
+                    <option value='1032'>103(下)</option>
+                    <option value='1041'>104(上)</option>
+                    <option value='1042'>104(下)</option>
+                    <option value='1051'>105(上)</option>
+                    <option value='1052'>105(下)</option>
+                    <option value='1061'>106(上)</option>
+                    <option value='1062'>106(下)</option>
+                    <option value='1071'>107(上)</option>
+                    <option value='1072'>107(下)</option>
+                    <option value='1081'>108(上)</option>
+                </select>
+                    科目名稱：<input class='input_gray' id='sname' size='20'/><input type='hidden' name='subject'/>&nbsp;
+                    <input type="submit" class="btn_middle" value="查詢"/>
+                </form>
+            </div>
+
+            <div id="tabs4">
+                <form method="get" name='qry_form4' action="">
+                    <img src="/images/icon_search1.gif" alt='query'/>&nbsp;
+                    學期：<select name='sem' class='selgray'>
+                    <option value='901'>90(上)</option>
+                    <option value='902'>90(下)</option>
+                    <option value='911'>91(上)</option>
+                    <option value='912'>91(下)</option>
+                    <option value='921'>92(上)</option>
+                    <option value='922'>92(下)</option>
+                    <option value='931'>93(上)</option>
+                    <option value='932'>93(下)</option>
+                    <option value='941'>94(上)</option>
+                    <option value='942'>94(下)</option>
+                    <option value='951'>95(上)</option>
+                    <option value='952'>95(下)</option>
+                    <option value='961'>96(上)</option>
+                    <option value='962'>96(下)</option>
+                    <option value='971'>97(上)</option>
+                    <option value='972'>97(下)</option>
+                    <option value='981'>98(上)</option>
+                    <option value='982'>98(下)</option>
+                    <option value='991'>99(上)</option>
+                    <option value='992'>99(下)</option>
+                    <option value='1001'>100(上)</option>
+                    <option value='1002'>100(下)</option>
+                    <option value='1011'>101(上)</option>
+                    <option value='1012'>101(下)</option>
+                    <option value='1021'>102(上)</option>
+                    <option value='1022'>102(下)</option>
+                    <option value='1031'>103(上)</option>
+                    <option value='1032'>103(下)</option>
+                    <option value='1041'>104(上)</option>
+                    <option value='1042'>104(下)</option>
+                    <option value='1051'>105(上)</option>
+                    <option value='1052'>105(下)</option>
+                    <option value='1061'>106(上)</option>
+                    <option value='1062'>106(下)</option>
+                    <option value='1071'>107(上)</option>
+                    <option value='1072'>107(下)</option>
+                    <option value='1081'>108(上)</option>
+                </select>&nbsp;
+                    課程類型：<select name='stype' class='selgray'>
+                    <option value='ge'>通識課程</option>
+                    <option value='pe'>體育課程</option>
+                    <option value='lc'>第二外語</option>
+                </select>&nbsp;<input type="submit" class="btn_middle" value="查詢"/>
+                </form>
+            </div>
+            <div id="tabs5">
+                <form method="get" name='qry_form5' action="">
+                    <input type="hidden" name="sch_dep" id="sch_dep" value="1"/>
+                    <img src="/images/icon_search1.gif" alt='query'/>&nbsp;
+                    學期：<select name='sem' class='selgray'>
+                    <option value='901'>90(上)</option>
+                    <option value='902'>90(下)</option>
+                    <option value='911'>91(上)</option>
+                    <option value='912'>91(下)</option>
+                    <option value='921'>92(上)</option>
+                    <option value='922'>92(下)</option>
+                    <option value='931'>93(上)</option>
+                    <option value='932'>93(下)</option>
+                    <option value='941'>94(上)</option>
+                    <option value='942'>94(下)</option>
+                    <option value='951'>95(上)</option>
+                    <option value='952'>95(下)</option>
+                    <option value='961'>96(上)</option>
+                    <option value='962'>96(下)</option>
+                    <option value='971'>97(上)</option>
+                    <option value='972'>97(下)</option>
+                    <option value='981'>98(上)</option>
+                    <option value='982'>98(下)</option>
+                    <option value='991'>99(上)</option>
+                    <option value='992'>99(下)</option>
+                    <option value='1001'>100(上)</option>
+                    <option value='1002'>100(下)</option>
+                    <option value='1011'>101(上)</option>
+                    <option value='1012'>101(下)</option>
+                    <option value='1021'>102(上)</option>
+                    <option value='1022'>102(下)</option>
+                    <option value='1031'>103(上)</option>
+                    <option value='1032'>103(下)</option>
+                    <option value='1041'>104(上)</option>
+                    <option value='1042'>104(下)</option>
+                    <option value='1051'>105(上)</option>
+                    <option value='1052'>105(下)</option>
+                    <option value='1061'>106(上)</option>
+                    <option value='1062'>106(下)</option>
+                    <option value='1071'>107(上)</option>
+                    <option value='1072'>107(下)</option>
+                    <option value='1081'>108(上)</option>
+                </select>&nbsp;
+                    學制：<select name='sch_type' class='selgray'>
+                    <option value='0'>－－－</option>
+                    <option value='1'>五專</option>
+                    <option value='3'>二技</option>
+                    <option value='4'>四技</option>
+                    <option value='7'>碩專班</option>
+                    <option value='8'>碩士班</option>
+                </select>
+                    星期<select name="weekday" class="selgray">
+                    <option value="1">一</option>
+                    <option value="2">二</option>
+                    <option value="3">三</option>
+                    <option value="4">四</option>
+                    <option value="5">五</option>
+                    <option value="6">六</option>
+                    <option value="7">日</option>
+                </select>
+                    節次：<select name="start_section" class="selgray" style="margin-right:0;">---</select>～<select
+                        name="end_section" class="selgray">---</select>
+                    &nbsp;<input type="submit" class="btn_middle" value="查詢"/><br>
+                    <span class='note_info'>備註：欲加選未開放外系於線上網路選課之課程時，請於開學加退選期間提出紙本申請特殊狀況加退選。</span>
+                </form>
+            </div>
+
+        </div>
+    </div>
+
+    <div class='list_info'>目前查詢結果共有 <strong>9</strong> 門課程。</div>
+
+
+    <table class="grid_view empty_html" style='width:98%;'>
+        <tr align='center'>
+            <th width="30">#</th>
+            <th nowrap>課程代碼</th>
+            <th nowrap>開課班級</th>
+            <th style='min-width: 160px'>課程</th>
+            <th width="40">組別</th>
+            <th>上課時間/教室</th>
+            <th width="40">修別</th>
+            <th width="70">時數 / 學分</th>
+            <th width="70">選課人數</th>
+            <th width="100">上課教師</th>
+            <th width="100">人數限制</th>
+            <th width="70">開放外系</th>
+            <th width="80">執行</th>
+        </tr>
+
+        <tr>
+            <td>1</td>
+            <td>D7181</td>
+            <td nowrap>資管三Ａ</td>
+            <td id='subject_7181'>週會/班會 <strong>(學年)</strong></td>
+            <td>---</td>
+            <td style='text-align:left; padding-left:10px;'>星期四第７、８節 (2401)</td>
+            <td>必</td>
+            <td>2 / 0</td>
+            <td class='controls'><strong>48</strong></td>
+            <td>駱榮問</td>
+            <td>23 ~ 60</td>
+            <td>否</td>
+            <td class='controls'>
+                <a href='#' title='查看課程內容' onclick='return course_detail(7181);'><img src='/images/b_view.gif'
+                                                                                      alt='查看'/>查看</a></td>
+        </tr>
+
+        <tr>
+            <td>2</td>
+            <td>D7177</td>
+            <td nowrap>資管三Ａ</td>
+            <td id='subject_7177'>多媒體系統</td>
+            <td>---</td>
+            <td style='text-align:left; padding-left:10px;'>星期一第２～４節 (2603)</td>
+            <td>必</td>
+            <td>3 / 3</td>
+            <td class='controls'><strong>49</strong></td>
+            <td>戴偉勝</td>
+            <td>23 ~ 58</td>
+            <td>否</td>
+            <td class='controls'>
+                <a href='#' title='查看課程內容' onclick='return course_detail(7177);'><img src='/images/b_view.gif'
+                                                                                      alt='查看'/>查看</a></td>
+        </tr>
+
+        <tr>
+            <td>3</td>
+            <td>D7178</td>
+            <td nowrap>資管三Ａ</td>
+            <td id='subject_7178'>程式設計</td>
+            <td>1</td>
+            <td style='text-align:left; padding-left:10px;'>星期五第２～４節 (2405)</td>
+            <td>必</td>
+            <td>3 / 3</td>
+            <td class='controls'><strong>23</strong></td>
+            <td>徐旺興</td>
+            <td>23 ~ 28</td>
+            <td>否</td>
+            <td class='controls'>
+                <a href='#' title='查看課程內容' onclick='return course_detail(7178);'><img src='/images/b_view.gif'
+                                                                                      alt='查看'/>查看</a></td>
+        </tr>
+
+        <tr>
+            <td>4</td>
+            <td>D8554</td>
+            <td nowrap>資管三Ａ</td>
+            <td id='subject_8554'>程式設計</td>
+            <td>2</td>
+            <td style='text-align:left; padding-left:10px;'>星期五第２～４節 (2402)</td>
+            <td>必</td>
+            <td>3 / 3</td>
+            <td class='controls'><strong>28</strong></td>
+            <td>張景閔</td>
+            <td>23 ~ 58</td>
+            <td>否</td>
+            <td class='controls'>
+                <a href='#' title='查看課程內容' onclick='return course_detail(8554);'><img src='/images/b_view.gif'
+                                                                                      alt='查看'/>查看</a></td>
+        </tr>
+
+        <tr>
+            <td>5</td>
+            <td>D7179</td>
+            <td nowrap>資管三Ａ</td>
+            <td id='subject_7179'>資料庫管理系統</td>
+            <td>---</td>
+            <td style='text-align:left; padding-left:10px;'>星期二第２～４節 (2604)</td>
+            <td>必</td>
+            <td>3 / 3</td>
+            <td class='controls'><strong>56</strong></td>
+            <td>姜琇森</td>
+            <td>23 ~ 58</td>
+            <td>否</td>
+            <td class='controls'>
+                <a href='#' title='查看課程內容' onclick='return course_detail(7179);'><img src='/images/b_view.gif'
+                                                                                      alt='查看'/>查看</a></td>
+        </tr>
+
+        <tr>
+            <td>6</td>
+            <td>D7180</td>
+            <td nowrap>資管三Ａ</td>
+            <td id='subject_7180'>資訊網路</td>
+            <td>---</td>
+            <td style='text-align:left; padding-left:10px;'>星期一第５～７節 (2401)</td>
+            <td>必</td>
+            <td>3 / 3</td>
+            <td class='controls'><strong>51</strong></td>
+            <td>駱榮問</td>
+            <td>23 ~ 58</td>
+            <td>否</td>
+            <td class='controls'>
+                <a href='#' title='查看課程內容' onclick='return course_detail(7180);'><img src='/images/b_view.gif'
+                                                                                      alt='查看'/>查看</a></td>
+        </tr>
+
+        <tr>
+            <td>7</td>
+            <td>D7168</td>
+            <td nowrap>資管三Ａ</td>
+            <td id='subject_7168'>人力資源管理資訊系統</td>
+            <td>---</td>
+            <td style='text-align:left; padding-left:10px;'>星期四第２～４節 (6505)</td>
+            <td>選</td>
+            <td>3 / 3</td>
+            <td class='controls'><strong>47</strong></td>
+            <td>俞錚蓉</td>
+            <td>23 ~ 60</td>
+            <td>否</td>
+            <td class='controls'>
+                <a href='#' title='查看課程內容' onclick='return course_detail(7168);'><img src='/images/b_view.gif'
+                                                                                      alt='查看'/>查看</a></td>
+        </tr>
+
+        <tr>
+            <td>8</td>
+            <td>D7174</td>
+            <td nowrap>資管三Ａ</td>
+            <td id='subject_7174'>數位多媒體互動應用實務 <em>(另併１班)</em></td>
+            <td>---</td>
+            <td style='text-align:left; padding-left:10px;'>星期五第５～７節 (2603)</td>
+            <td>選</td>
+            <td>3 / 3</td>
+            <td class='controls'><strong>43</strong></td>
+            <td>周殷菀</td>
+            <td>23 ~ 60</td>
+            <td>否</td>
+            <td class='controls'>
+                <a href='#' title='查看課程內容' onclick='return course_detail(7174);'><img src='/images/b_view.gif'
+                                                                                      alt='查看'/>查看</a></td>
+        </tr>
+
+        <tr>
+            <td>9</td>
+            <td>D7270</td>
+            <td nowrap>資管三Ａ</td>
+            <td id='subject_7270'>虛擬與擴增實境系統開發技術<br>
+                (合併至 資應菁英班三Ａ)
+            </td>
+            <td>---</td>
+            <td style='text-align:left; padding-left:10px;'>星期三第５～７節 (2603)</td>
+            <td>選</td>
+            <td>3 / 3</td>
+            <td class='controls'><strong>0</strong></td>
+            <td>戴偉勝</td>
+            <td>23 ~ 58</td>
+            <td>否</td>
+            <td class='controls'>
+                <a href='#' title='查看課程內容' onclick='return course_detail(7270);'><img src='/images/b_view.gif'
+                                                                                      alt='查看'/>查看</a></td>
+        </tr>
+
+    </table>
+    <p></p>
+    <div class="page"></div>
+    <script type="text/javascript">
+        $(document).ready(function () {
+            $('[name=sem]').each(function () {
+                var $this = $(this);
+                if ($this.val() == null) {
+                    var opt = $this.find("option:last").val();
+                    $this.val(opt);
+                }
+            });
+        });
+    </script>
+
+</div>
+<div id="footer-left" style='background-image: url(/images/footer/1/footer_left.png);'></div>
+<div
+        id="footer-right" style='background-image: url(/images/footer/1/footer_right.png);'></div>
+<div id='cover1'
+     style='position:absolute; top:0px; right:0px; z-index:11; padding: 2px 10px 2px 10px; font-size:16px; background-color: Red; color: White;'>
+    頁面載入中...
+</div>
+<div id='cover2'
+     style='position:absolute; background-color: #777; filter:alpha(Opacity=20, Style=0); -moz-opacity:0.2; opacity: 0.2; top:0px; left:0px; width:100%; height:100%; z-index:10;'></div>
+<script type="text/javascript">
+    function show_cover() {
+        if (arguments.length == 0)
+            return;
+
+        var flag = arguments[0];
+        if (flag && arguments.length > 1)
+            $("#cover1").text(arguments[1]);
+
+        $("#cover2").css('height', parseInt($("#footer-left").offset().top) + $("#footer-left").height() + "px");
+        $('div[id*=cover]').css('display', flag ? '' : 'none');
+    }
+</script>
+</body>
+</html>
